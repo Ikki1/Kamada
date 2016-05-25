@@ -1,13 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 ep = 10**(-3)
 size = 10
 
-edge= np.genfromtxt('edges-1.csv', delimiter=",").astype(np.int64)	#辺の情報
+edge= np.genfromtxt('edges-2.csv', delimiter=",").astype(np.int64)  #辺の情報
 
-N = np.max(edge).astype(np.int64)+1	#頂点の個数
-eN = len(edge)	#辺の本数
+N = np.max(edge).astype(np.int64)+1 #頂点の個数
+eN = len(edge)  #辺の本数
 
 #nodeの初期値
 node = np.zeros((N,2))
@@ -39,7 +40,7 @@ l = size/np.max(d)*d
 
 #kを求める
 k = np.zeros((N,N)) #ばね定数
-K = 1	#ばね定数の基準値
+K = 1   #ばね定数の基準値
 for j in range(N):
     for i in range(N):
         if i != j:
@@ -47,9 +48,9 @@ for j in range(N):
 
 
 #dmを求める
-dm= np.zeros(N)	#delta-m
-Ex= np.zeros(N)	#Ex
-Ey= np.zeros(N)	#Ey
+dm= np.zeros(N) #delta-m
+Ex= np.zeros(N) #Ex
+Ey= np.zeros(N) #Ey
 
 for m in range(N):
     for i in range(N):
@@ -98,9 +99,9 @@ while np.max(dm)>ep:
         dm[m]= (Ex[m]**2+Ey[m]**2)**(1/2)
         
     #dmを求める
-    dm= np.zeros(N)	#delta-m
-    Ex= np.zeros(N)	#Ex
-    Ey= np.zeros(N)	#Ey
+    dm= np.zeros(N) #delta-m
+    Ex= np.zeros(N) #Ex
+    Ey= np.zeros(N) #Ey
 
     for m in range(N):
         for i in range(N):
@@ -129,17 +130,20 @@ node+= -mean
 plt.figure(figsize=(size, size), dpi=80)
 
 G1 = plt.gca()
-plt.xlim(-size, size)
-plt.ylim(-size, size)
+plt.xlim(-size*0.6, size*0.6)
+plt.ylim(-size*0.6, size*0.6)
 
 c1 = plt.Circle((0, 0), radius=size/2, fill=False ,ls='-.')
 G1.add_patch(c1)
 
 for i in range(N):
-    G1.add_patch(plt.Circle((node[i][0],node[i][1]), radius=0.1, fill=True, color = 'Black'))
+    G1.add_patch(plt.Circle((node[i][0],node[i][1]), radius=0.3, fill=True, color = 'Black'))
 
 for i in range(eN):
     G1.add_line(plt.Line2D((node[edge[i][0]][0], node[edge[i][1]][0]), 
-    					   (node[edge[i][0]][1], node[edge[i][1]][1]), color = 'Black'))
+                           (node[edge[i][0]][1], node[edge[i][1]][1]), color = 'Black'))
+
+for i in range(N):
+    G1.text(node[i][0],node[i][1],str(i),fontsize=20,horizontalalignment='center',verticalalignment='center',color='White',weight=1000)
 
 plt.show()
