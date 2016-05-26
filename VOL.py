@@ -1,11 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+from matplotlib import pyplot as plt
+from matplotlib import animation
+
 
 ep = 10**(-3)
 size = 10
 
-edge= np.genfromtxt('edges-2.csv', delimiter=",").astype(np.int64)  #辺の情報
+edge= np.genfromtxt('edges-1.csv', delimiter=",").astype(np.int64)  #辺の情報
 
 N = np.max(edge).astype(np.int64)+1 #頂点の個数
 eN = len(edge)  #辺の本数
@@ -14,6 +15,14 @@ eN = len(edge)  #辺の本数
 node = np.zeros((N,2))
 for i in range(N):
     node[i] = [size/2*np.cos(2*np.pi*i/N),size/2*np.sin(2*np.pi*i/N)]
+
+#nodeの履歴を保存する
+count = 0
+save =[]
+save.append(np.zeros((N,2)))
+for i in range(N):
+    save[count][i] = [node[i][0],node[i][1]]
+count += 1
 
 isConnect = np.zeros((N,N)) #繋がっている辺の組は1,繋がっていない組は0で表す
 for i in range(eN):
@@ -98,6 +107,12 @@ while np.max(dm)>ep:
         node[m][1]+= dy
         dm[m]= (Ex[m]**2+Ey[m]**2)**(1/2)
         
+        #nodeの履歴を保存する
+        save.append(np.zeros((N,2)))
+        for i in range(N):
+            save[count][i] = [node[i][0],node[i][1]]
+        count += 1
+        
     #dmを求める
     dm= np.zeros(N) #delta-m
     Ex= np.zeros(N) #Ex
@@ -118,32 +133,42 @@ while np.max(dm)>ep:
         if np.max(dm) == dm[i]:
             m = i
 
-#グラフの位置の調整
-mean= np.zeros(2)
+#描画の設定
+fig = plt.figure(figsize=(size, size), dpi=80)
+ax = plt.axes(xlim=(-size*0.8, size*0.8), ylim=(-size*0.8, size*0.8))
 
-for i in range(N):
-    mean+=node[i]/N
-    
-node+= -mean
+#フレームの内容を保持
+im = [] 
 
-#描画
-plt.figure(figsize=(size, size), dpi=80)
+#アニメ―ション
+def animate(t, fig, im):
 
-G1 = plt.gca()
-plt.xlim(-size*0.6, size*0.6)
-plt.ylim(-size*0.6, size*0.6)
+    #前回のフレーム内容を一旦削除
+    if len(im) > 0:
+        lenim=len(im)
+        for i in range(lenim):
+            im[lenim-(1+i)].remove()
+            im.pop()
+                    
+    #描画のための計算
+    #描画
+    #点
+    for i in range(N):
+        im.append(ax.add_patch(plt.Circle((save[t][i][0],save[t][i][1]), radius=0.3, fill=True, color = 'Black')))
+    #辺
+    for i in range(eN):
+        im.append(ax.add_line(plt.Line2D((save[t][edge[i][0]][0], save[t][edge[i][1]][0]), 
+                           (save[t][edge[i][0]][1], save[t][edge[i][1]][1]), color = 'Black')))
+    #ラベル
+    for i in range(N):
+        im.append(ax.text(save[t][i][0],save[t][i][1],str(i),fontsize=16,horizontalalignment='center',verticalalignment='center',color='White',weight=1000))
+    im.append(ax.text(-size*0.75,size*0.75,'frame: '+str(t),fontsize=16,color='Black',weight=500))
+          
 
-c1 = plt.Circle((0, 0), radius=size/2, fill=False ,ls='-.')
-G1.add_patch(c1)
+# アニメーション作成
+anim = animation.FuncAnimation(fig, animate, fargs = (fig, im), 
+        frames = len(save), interval = 100) 
 
-for i in range(N):
-    G1.add_patch(plt.Circle((node[i][0],node[i][1]), radius=0.3, fill=True, color = 'Black'))
-
-for i in range(eN):
-    G1.add_line(plt.Line2D((node[edge[i][0]][0], node[edge[i][1]][0]), 
-                           (node[edge[i][0]][1], node[edge[i][1]][1]), color = 'Black'))
-
-for i in range(N):
-    G1.text(node[i][0],node[i][1],str(i),fontsize=20,horizontalalignment='center',verticalalignment='center',color='White',weight=1000)
+# 表示
 
 plt.show()
