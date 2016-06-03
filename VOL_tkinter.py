@@ -134,43 +134,55 @@ while np.max(dm)>ep:
 
 
 from tkinter import *
-master = Tk()
+ 
+class CanvasOval:
+    canvas = None
+ 
+    def __init__(self, x0, y0, x1, y1, **key):
+        self.id = self.canvas.create_oval(x0, y0, x1, y1, **key)
+        self.canvas.tag_bind(self.id, '<1>', self.drag_start)
+        self.canvas.tag_bind(self.id, '<Button1-Motion>', self.dragging)
+ 
+    def drag_start(self, event):
+        self.x = event.x
+        self.y = event.y
+ 
+    def dragging(self, event):
+        self.canvas.move(self.id, event.x-self.x ,event.y-self.y)
+        self.x = event.x
+        self.y = event.y
+ 
+class Previewer(Frame):
+ 
+    def __init__(self, master=None):
+        Frame.__init__(self, master)
+        
+        global newsize
+        newsize = 500
+        
+        self.cvs = Canvas(self, width=newsize, height=newsize, bg="white")  
+        self.cvs.grid(row=0, column=0)
+ 
+        CanvasOval.canvas=self.cvs
 
-newsize = 500
+        circles = []
+        lines = []
+        texts = []
+        r=0.3
+        N=len(node)
 
-w=Canvas(master, width=newsize, height=newsize)
-w.pack()
+        def change(x): 
+            return x*newsize/(size*1.6)+newsize/2
 
-circles = []
-lines = []
-texts = []
-r=0.3
-N=len(node)
+        for i in range(eN):
+            lines.append(self.cvs.create_line(change(node[edge[i][0]][0]), change(node[edge[i][0]][1]), 
+                                   change(node[edge[i][1]][0]), change(node[edge[i][1]][1]), fill = 'Black'))
 
-def change(x): 
-    return x*newsize/(size*1.6)+newsize/2
-
-for i in range(eN):
-    lines.append(w.create_line(change(node[edge[i][0]][0]), change(node[edge[i][0]][1]), 
-                           change(node[edge[i][1]][0]), change(node[edge[i][1]][1]), fill = 'Black'))
-
-for i in range(N):
-    circles.append(w.create_oval(change(node[i][0]-r), change(node[i][1]-r), change(node[i][0]+r), change(node[i][1]+r), fill="White"))
-    texts.append(w.create_text(change(node[i][0]),change(node[i][1]), text = str(i), fill='Black'))
-
-# def moveFigure(event):
-#     global num
-#     x= event.x
-#     y= event.y
-#     node[num][0]= x
-#     node[num][1]= y
-#     w.coords(circles[num], change(node[num][0]-r), change(node[num][1]-r), change(node[num][0]+r), change(node[num][1]+r))
-    
-# for i in range(N):
-#      num=i
-#     w.tag_bind(eN+2*i+1, 'Button-Motion', moveFigure)
-
-# line=w.create_line(0,20,80,40,fill="red")
-# w.move(line, 150, 0)
-# w.coords(line, 0, 0, 800, 400)
-master.mainloop()
+        for i in range(N):
+            circles.append(CanvasOval(change(node[i][0]-r), change(node[i][1]-r), change(node[i][0]+r), change(node[i][1]+r), fill="White"))
+            texts.append( self.cvs.create_text(change(node[i][0]),change(node[i][1]), text = str(i), fill='Black'))
+ 
+if __name__ == '__main__':
+    f = Previewer()
+    f.pack()
+    f.mainloop()
