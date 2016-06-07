@@ -1,19 +1,23 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import animation
+from tkinter import *
 
 
 ep = 10**(-2)
-size = 10
+global size
+fullsize=500 #余白込みの画面のサイズ
+size = 300 #画面のサイズ
 
-edge= np.genfromtxt('edges-1.csv', delimiter=",").astype(np.int64)	#辺の情報
-N = np.max(edge).astype(np.int64)+1	#頂点の個数
-eN = len(edge)	#辺の本数
+edge= np.genfromtxt('edges-1.csv', delimiter=",").astype(np.int64)  #辺の情報
+global N
+N = np.max(edge).astype(np.int64)+1 #頂点の個数
+global eN
+eN = len(edge)  #辺の本数
 
 #nodeの初期値
 node = np.zeros((N,2))
 for i in range(N):
-    node[i] = [size/2*np.cos(2*np.pi*i/N),size/2*np.sin(2*np.pi*i/N)]
+    node[i] = [(fullsize+size*np.cos(2*np.pi*i/N))*0.5, (fullsize+size*np.sin(2*np.pi*i/N))*0.5]
 
 #nodeの履歴を保存する
 count = 0
@@ -48,7 +52,7 @@ l = size/np.max(d)*d
 
 #kを求める
 k = np.zeros((N,N)) #ばね定数
-K = 1	#ばね定数の基準値
+K = 1   #ばね定数の基準値
 for j in range(N):
     for i in range(N):
         if i != j:
@@ -56,9 +60,9 @@ for j in range(N):
 
 
 #dmを求める
-dm= np.zeros(N)	#delta-m
-Ex= np.zeros(N)	#Ex
-Ey= np.zeros(N)	#Ey
+dm= np.zeros(N) #delta-m
+Ex= np.zeros(N) #Ex
+Ey= np.zeros(N) #Ey
 
 for m in range(N):
     for i in range(N):
@@ -113,9 +117,9 @@ while np.max(dm)>ep:
         count += 1
         
     #dmを求める
-    dm= np.zeros(N)	#delta-m
-    Ex= np.zeros(N)	#Ex
-    Ey= np.zeros(N)	#Ey
+    dm= np.zeros(N) #delta-m
+    Ex= np.zeros(N) #Ex
+    Ey= np.zeros(N) #Ey
 
     for m in range(N):
         for i in range(N):
@@ -132,57 +136,116 @@ while np.max(dm)>ep:
         if np.max(dm) == dm[i]:
             m = i
 
+            
+root = Tk()
 
-from tkinter import *
- 
-class CanvasOval:
-    canvas = None
- 
-    def __init__(self, x0, y0, x1, y1, **key):
-        self.id = self.canvas.create_oval(x0, y0, x1, y1, **key)
-        self.canvas.tag_bind(self.id, '<1>', self.drag_start)
-        self.canvas.tag_bind(self.id, '<Button1-Motion>', self.dragging)
- 
-    def drag_start(self, event):
-        self.x = event.x
-        self.y = event.y
- 
-    def dragging(self, event):
-        self.canvas.move(self.id, event.x-self.x ,event.y-self.y)
-        self.x = event.x
-        self.y = event.y
- 
-class Previewer(Frame):
- 
-    def __init__(self, master=None):
-        Frame.__init__(self, master)
+w = Canvas(root, width=fullsize, height=fullsize, bg='White')
+w.pack()
+back = w.create_rectangle(0, 0, fullsize, fullsize, fill='White', outline='White', tags = 'back')
+
+circles = []
+lines = []
+texts = []
+r=10
+N=len(node)
+
+#初期描画
+for i in range(eN):
+    lines.append(w.create_line(node[edge[i][0]][0], node[edge[i][0]][1], 
+                           node[edge[i][1]][0], node[edge[i][1]][1], fill = 'Black', tags = 'edge'))
+
+for i in range(N):
+    circles.append(w.create_oval(node[i][0]-r, node[i][1]-r, node[i][0]+r, node[i][1]+r, fill="White", tags = 'node'))
+    texts.append( w.create_text(node[i][0],node[i][1], text = str(i), fill='Black', tags = 'node'))
+
+
+# 移動
+def move_node(event):
+    x = event.x
+    y = event.y
+    thisID = event.widget.find_withtag(CURRENT)[0]
+    
+    #circleをクリックしていた場合
+    if (thisID-eN)%2 == 0: nodeID = int((thisID-eN-2)/2)
         
-        global newsize
-        newsize = 500
-        
-        self.cvs = Canvas(self, width=newsize, height=newsize, bg="white")  
-        self.cvs.grid(row=0, column=0)
- 
-        CanvasOval.canvas=self.cvs
+    #textをクリックしていた場合    
+    else: nodeID = int((thisID-eN-3)/2)
+    
+    #nodeの更新
+    node[nodeID] = [x,y]
+    
+    #circle,text,lineの更新(描画の更新)
+    w.coords(circles[nodeID], x - r, y - r, x + r, y + r)
+    w.coords(texts[nodeID], x, y)   
+    for i in range(eN):
+        if edge[i][0] == nodeID:
+            w.coords(lines[i], x, y, node[edge[i][1]][0], node[edge[i][1]][1])
+        if edge[i][1] == nodeID:
+            w.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], x, y)
+            
+def click_edge(event):
+    global x0, y0, edgeID, n0, n1
+    x0 = event.x
+    y0 = event.y
+    thisID = event.widget.find_withtag(CURRENT)[0]
+    edgeID = thisID - 2
+    n0 = [node[edge[edgeID][0]][0],node[edge[edgeID][0]][1]]
+    n1 = [node[edge[edgeID][1]][0],node[edge[edgeID][1]][1]]
+            
+def move_edge(event):
+    x = event.x
+    y = event.y
+    
+    #nodeの更新
+    node[edge[edgeID][0]] = [n0[0] + x - x0, n0[1] + y - y0]
+    node[edge[edgeID][1]] = [n1[0] + x - x0, n1[1] + y - y0]
+    n0new = node[edge[edgeID][0]]
+    n1new = node[edge[edgeID][1]]
+    
+    #circle,text,lineの更新(描画の更新)
+    w.coords(circles[edge[edgeID][0]], n0new[0] - r, n0new[1] - r, n0new[0] + r, n0new[1] + r)
+    w.coords(circles[edge[edgeID][1]], n1new[0] - r, n1new[1] - r, n1new[0] + r, n1new[1] + r)
+    w.coords(texts[edge[edgeID][0]], n0new[0], n0new[1])
+    w.coords(texts[edge[edgeID][1]], n1new[0], n1new[1])
+    w.coords(lines[edgeID], n0new[0], n0new[1], n1new[0], n1new[1])
+    for i in range(eN):
+        if edge[i][0] == edge[edgeID][0] and i != edgeID:
+            w.coords(lines[i], n0new[0], n0new[1], node[edge[i][1]][0], node[edge[i][1]][1])
+        elif edge[i][1] == edge[edgeID][0] and i != edgeID:
+            w.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], n0new[0], n0new[1])
+        elif edge[i][0] == edge[edgeID][1] and i != edgeID:
+            w.coords(lines[i], n1new[0], n1new[1], node[edge[i][1]][0], node[edge[i][1]][1])
+        elif edge[i][1] == edge[edgeID][1] and i != edgeID:
+            w.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], n1new[0], n1new[1])
 
-        circles = []
-        lines = []
-        texts = []
-        r=0.3
-        N=len(node)
+def click_back(event):
+    global x0_, y0_, nall
+    x0_ = event.x
+    y0_ = event.y
+    nall=np.zeros((N,2))
+    for i in range(N):
+        nall[i] = [node[i][0],node[i][1]]
+            
+def move_back(event):
+    x = event.x
+    y = event.y
+    
+    #nodeの更新
+    for i in range(N):
+        node[i] = [nall[i][0] + x - x0_, nall[i][1] + y - y0_]
+    
+    #circle,text,lineの更新(描画の更新)
+    for i in range(eN):
+        w.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], node[edge[i][1]][0], node[edge[i][1]][1])
+    for i in range(N):
+        w.coords(circles[i], node[i][0]-r, node[i][1]-r, node[i][0]+r, node[i][1]+r)
+        w.coords(texts[i], node[i][0],node[i][1])
 
-        def change(x): 
-            return x*newsize/(size*1.6)+newsize/2
+# バインディング
+w.tag_bind('node', '<Button1-Motion>', move_node)
+w.tag_bind('edge', '<1>', click_edge)
+w.tag_bind('edge', '<Button1-Motion>', move_edge)
+w.tag_bind('back', '<1>', click_back)
+w.tag_bind('back', '<Button1-Motion>', move_back)
 
-        for i in range(eN):
-            lines.append(self.cvs.create_line(change(node[edge[i][0]][0]), change(node[edge[i][0]][1]), 
-                                   change(node[edge[i][1]][0]), change(node[edge[i][1]][1]), fill = 'Black'))
-
-        for i in range(N):
-            circles.append(CanvasOval(change(node[i][0]-r), change(node[i][1]-r), change(node[i][0]+r), change(node[i][1]+r), fill="White"))
-            texts.append( self.cvs.create_text(change(node[i][0]),change(node[i][1]), text = str(i), fill='Black'))
- 
-if __name__ == '__main__':
-    f = Previewer()
-    f.pack()
-    f.mainloop()
+root.mainloop()
