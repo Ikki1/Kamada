@@ -8,11 +8,13 @@ global size
 fullsize=500 #余白込みの画面のサイズ
 size = 300 #画面のサイズ
 
-edge= np.genfromtxt('edges-4.csv', delimiter=",").astype(np.int64)	#辺の情報
+edge= np.genfromtxt('edges-1.csv', delimiter=",").astype(np.int64)  #辺の情報
 global N
-N = np.max(edge).astype(np.int64)+1	#頂点の個数
+N = np.max(edge).astype(np.int64)+1 #頂点の個数
 global eN
-eN = len(edge)	#辺の本数
+eN = len(edge)  #辺の本数
+
+fix = np.zeros(N)
 
 #nodeの初期値
 global node
@@ -45,7 +47,7 @@ l = size/np.max(d)*d
 
 #kを求める
 k = np.zeros((N,N)) #ばね定数
-K = 1	#ばね定数の基準値
+K = 1   #ばね定数の基準値
 for j in range(N):
     for i in range(N):
         if i != j:
@@ -161,6 +163,22 @@ def move_back(event):
             w.coords(circles[i], node[i][0]-r, node[i][1]-r, node[i][0]+r, node[i][1]+r)
             w.coords(texts[i], node[i][0],node[i][1])
 
+def fix_node(event):
+    if val.get()==0:
+        thisID = event.widget.find_withtag(CURRENT)[0]
+
+        #circleをクリックしていた場合
+        if (thisID-eN)%2 == 0: nodeID = int((thisID-eN-2)/2)
+
+        #textをクリックしていた場合    
+        else: nodeID = int((thisID-eN-3)/2)
+
+        if fix[nodeID] == 0:
+            fix[nodeID] = 1
+            w.itemconfigure(circles[nodeID], fill='Yellow')
+        else:
+            fix[nodeID] = 0
+            w.itemconfigure(circles[nodeID], fill='White')
 
 def move_graph():
     # バインディング
@@ -169,21 +187,23 @@ def move_graph():
     w.tag_bind('edge', '<Button1-Motion>', move_edge)
     w.tag_bind('back', '<1>', click_back)
     w.tag_bind('back', '<Button1-Motion>', move_back)
+    w.tag_bind('node', '<3>', fix_node)
 
 def anime_graph():
     #dmを求める
     global node
-    dm= np.zeros(N)	#delta-m
-    Ex= np.zeros(N)	#Ex
-    Ey= np.zeros(N)	#Ey
+    dm= np.zeros(N) #delta-m
+    Ex= np.zeros(N) #Ex
+    Ey= np.zeros(N) #Ey
 
     for m in range(N):
         for i in range(N):
-            if m != i:
+            if m != i and fix[m] ==0:
                 Ex[m]+= k[m][i]*(node[m][0]-node[i][0]-l[m][i]*(node[m][0]-node[i][0])
                                  /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
                 Ey[m]+= k[m][i]*(node[m][1]-node[i][1]-l[m][i]*(node[m][1]-node[i][1])
                                  /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
+    
 
     dm= (Ex**2+Ey**2)**(1/2)
 
@@ -204,7 +224,7 @@ def anime_graph():
             Eyy= 0 #Eyy
 
             for i in range(N):
-                if m != i:
+                if m != i and fix[m] ==0:
                     Ex[m]+= k[m][i]*(node[m][0]-node[i][0]-l[m][i]*(node[m][0]-node[i][0])
                                      /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
                     Ey[m]+= k[m][i]*(node[m][1]-node[i][1]-l[m][i]*(node[m][1]-node[i][1])
@@ -236,13 +256,13 @@ def anime_graph():
             w.update()
 
         #dmを求める
-        dm= np.zeros(N)	#delta-m
-        Ex= np.zeros(N)	#Ex
-        Ey= np.zeros(N)	#Ey
+        dm= np.zeros(N) #delta-m
+        Ex= np.zeros(N) #Ex
+        Ey= np.zeros(N) #Ey
 
         for m in range(N):
             for i in range(N):
-                if m != i:
+                if m != i and fix[m] ==0:
                     Ex[m]+= k[m][i]*(node[m][0]-node[i][0]-l[m][i]*(node[m][0]-node[i][0])
                                      /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
                     Ey[m]+= k[m][i]*(node[m][1]-node[i][1]-l[m][i]*(node[m][1]-node[i][1])
@@ -260,9 +280,9 @@ val = IntVar()
 val.set(0)
 move_graph()
 
-r0 = Radiobutton(text = 'drag', variable = val, value = 0, command = move_graph)
+r0 = Radiobutton(text = 'Drag / Stop', variable = val, value = 0, command = move_graph)
 r0.pack()
-r1 = Radiobutton(text = 'anime', variable = val, value = 1, command = anime_graph)
+r1 = Radiobutton(text = 'Animation', variable = val, value = 1, command = anime_graph)
 r1.pack()
 
 root.mainloop()
