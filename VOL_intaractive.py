@@ -2,6 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tkinter import *
 import time
+import sympy as sp
 
 ep = 10**(-2)
 global size
@@ -74,7 +75,20 @@ for i in range(eN):
 for i in range(N):
     circles.append(w.create_oval(node[i][0]-r, node[i][1]-r, node[i][0]+r, node[i][1]+r, fill="White", tags = 'node'))
     texts.append( w.create_text(node[i][0],node[i][1], text = str(i), fill='Black', tags = 'node'))
-
+    
+#sympy用の変数と方程式
+sp.var('kij lij xi xj yi yj')
+sE = 1/2 * kij * ((xi-xj)**2 + (yi-yj)**2 + lij**2 - 2*lij*((xi-xj)**2 + (yi-yj)**2)**(1/2))
+sEx = sp.simplify(sp.diff(sE, xi))
+sEy = sp.simplify(sp.diff(sE, yi))
+sExx = sp.simplify(sp.diff(sEx, xi))
+sExy = sp.simplify(sp.diff(sEx, yi))
+sEyy = sp.simplify(sp.diff(sEy, yi))
+fEx = sp.lambdify((kij,lij,xi,xj,yi,yj), sEx)
+fEy = sp.lambdify((kij,lij,xi,xj,yi,yj), sEy)
+fExx = sp.lambdify((kij,lij,xi,xj,yi,yj), sExx)
+fExy = sp.lambdify((kij,lij,xi,xj,yi,yj), sExy)
+fEyy = sp.lambdify((kij,lij,xi,xj,yi,yj), sEyy)
 
 # 移動
 def move_node(event):
@@ -199,10 +213,8 @@ def anime_graph():
     for m in range(N):
         for i in range(N):
             if m != i and fix[m] ==0:
-                Ex[m]+= k[m][i]*(node[m][0]-node[i][0]-l[m][i]*(node[m][0]-node[i][0])
-                                 /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
-                Ey[m]+= k[m][i]*(node[m][1]-node[i][1]-l[m][i]*(node[m][1]-node[i][1])
-                                 /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
+                Ex[m]+= fEx(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
+                Ey[m]+= fEy(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
     
 
     dm= (Ex**2+Ey**2)**(1/2)
@@ -211,7 +223,7 @@ def anime_graph():
     for i in range(N):
         if np.max(dm) == dm[i]:
             m = i
-
+    
     while np.max(dm)>ep and val.get()==1:
 
         while dm[m]>ep and val.get()==1:
@@ -225,15 +237,11 @@ def anime_graph():
 
             for i in range(N):
                 if m != i and fix[m] ==0:
-                    Ex[m]+= k[m][i]*(node[m][0]-node[i][0]-l[m][i]*(node[m][0]-node[i][0])
-                                     /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
-                    Ey[m]+= k[m][i]*(node[m][1]-node[i][1]-l[m][i]*(node[m][1]-node[i][1])
-                                     /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
-                    Exx+= k[m][i]*(1-l[m][i]*(node[m][1]-node[i][1])**2
-                                     /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(3/2)))
-                    Exy+= k[m][i]*l[m][i]*(node[m][0]-node[i][0])*(node[m][1]-node[i][1])/(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(3/2))
-                    Eyy+= k[m][i]*(1-l[m][i]*(node[m][0]-node[i][0])**2
-                                     /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(3/2)))
+                    Ex[m]+= fEx(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
+                    Ey[m]+= fEy(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
+                    Exx+= fExx(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
+                    Exy+= fExy(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
+                    Eyy+= fEyy(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
 
             dx= (Ex[m]*Eyy-Ey[m]*Exy)/(Exy**2-Exx*Eyy) #dx
             dy= (Ey[m]*Exx-Ex[m]*Exy)/(Exy**2-Exx*Eyy) #dy
@@ -263,10 +271,8 @@ def anime_graph():
         for m in range(N):
             for i in range(N):
                 if m != i and fix[m] ==0:
-                    Ex[m]+= k[m][i]*(node[m][0]-node[i][0]-l[m][i]*(node[m][0]-node[i][0])
-                                     /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
-                    Ey[m]+= k[m][i]*(node[m][1]-node[i][1]-l[m][i]*(node[m][1]-node[i][1])
-                                     /(((node[m][0]-node[i][0])**2+(node[m][1]-node[i][1])**2)**(1/2)))
+                    Ex[m]+= fEx(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
+                    Ey[m]+= fEy(k[m][i],l[m][i],node[m][0],node[i][0],node[m][1],node[i][1])
 
         dm= (Ex**2+Ey**2)**(1/2)
 
