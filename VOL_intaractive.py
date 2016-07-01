@@ -2,81 +2,101 @@ import numpy as np
 from tkinter import *
 import time
 import sympy as sp
+from itertools import product
 
+
+
+
+#kk法の定数・変数
 ep = 10 ** (-2)
-fullsize = 500  # 余白込みの画面のサイズ
-size = 300  # 画面のサイズ
 
-edge = np.genfromtxt('edges-1.csv', delimiter=",").astype(np.int64)  # 辺の情報
+#初期情報
+edge = np.genfromtxt('edges-4.csv', delimiter=",").astype(np.int64)  # 辺の情報
 N = np.max(edge).astype(np.int64) + 1  # 頂点の個数
 eN = len(edge)  # 辺の本数
 
+#インタラクション
 fix = np.zeros(N)   # 固定するしないを記憶
 
-#キャンパス
+fullsize = 500  # 余白込みの画面のサイズ
+size = 300  # 画面のサイズ
+
+shapes = {
+    'circles': [],
+    'lines': [],
+    'texts': [],
+    'radius': 10
+}
+
+def initializeNode():
+    global node
+    thetas = np.linspace(0, 2 * np.pi, N, endpoint=False)
+    node = (fullsize + size * np.c_[np.cos(thetas), np.sin(thetas)]) * 0.5
+
+initializeNode()
+
+def floydMethod():
+    global distance
+    distance = np.ones((N, N))*np.inf
+
+    for e in edge:
+        distance[e[0]][e[1]] = 1
+        distance[e[1]][e[0]] = 1
+
+    for m,i,j in product(range(N), range(N), range(N)):
+        distance[i][j] = min(distance[i][m] + distance[m][j], distance[i][j])
+
+floydMethod()
+
+def springLength():
+    global length
+    length = size / np.max(distance) * distance
+
+springLength()
+
+def springConstant():
+    global k
+    K = 0.1  # ばね定数の基準値
+    k = K / (distance ** 2) * (np.ones((N, N)) - np.diag(np.ones(N)))
+
+springConstant()
+
 root = Tk()
 
-w = Canvas(root, width=fullsize, height=fullsize, bg='White')
-w.pack()
-back = w.create_rectangle(0, 0, fullsize, fullsize, fill='White', outline='White', tags='back')
+def initializeDraw():
+    #キャンパス
+    global window, radius
+    window = Canvas(root, width=fullsize, height=fullsize, bg='White')
+    window.pack()
+    back = window.create_rectangle(0, 0, fullsize, fullsize, fill='White', outline='White', tags='back')
+    radius = 10
 
-circles = []
-lines = []
-texts = []
-r = 10
+    # 初期描画
+    for e in edge:
+        shapes['lines'].append(window.create_line(node[e[0]][0], node[e[0]][1],
+                                   node[e[1]][0], node[e[1]][1], fill='Black', tags='edge'))
 
-# nodeの初期値(for文を解消)
-global node
-node = (fullsize + size * np.c_[
-    np.cos(np.linspace(0, 2 * np.pi, N, endpoint=False)), np.sin(np.linspace(0, 2 * np.pi, N, endpoint=False))]) * 0.5
-
-isConnect = np.zeros((N, N))  # 繋がっている辺の組は1,繋がっていない組は0で表す
-for i in range(eN):
-    isConnect[edge[i][0]][edge[i][1]] = 1
-    isConnect[edge[i][1]][edge[i][0]] = 1
-
-# nodeの最短パスdを求める(Floyd法)
-d = isConnect
-for j in range(N):
     for i in range(N):
-        if d[i][j] == 0:
-            d[i][j] = np.inf
+        shapes['circles'].append(
+            window.create_oval(node[i][0] - radius, node[i][1] - radius, node[i][0] + radius, node[i][1] + radius,
+                          fill="White", tags='node'))
+        shapes['texts'].append(window.create_text(node[i][0], node[i][1], text=str(i), fill='Black', tags='node'))
 
-for m in range(N):
-    for i in range(N):
-        for j in range(N):
-            if d[i][m] + d[m][j] < d[i][j]:
-                d[i][j] = d[i][m] + d[m][j]
+initializeDraw()
 
-                # ばねの自然長lを求める
-l = size / np.max(d) * d
+def differential():
+    # sympy用の変数と方程式
+    sp.var('kij lij xi xj yi yj')
+    sE = 1 / 2 * kij * ((xi - xj) ** 2 + (yi - yj) ** 2 + lij ** 2 - 2 * lij * ((xi - xj) ** 2 + (yi - yj) ** 2) ** (1 / 2))
+    sEx, sEy = [sp.diff(sE, z) for z in [xi, yi]]
+    sExx, sExy = [sp.diff(sEx, z) for z in [xi, yi]]
+    sEyy = sp.diff(sEy, yi)
+    global fEx, fEy, fExx, fExy, fEyy
+    fEx, fEy, fExx, fExy, fEyy = [sp.lambdify((kij, lij, xi, xj, yi, yj), sp.simplify(s)) for s in[sEx, sEy, sExx, sExy, sEyy]]
 
-# kを求める
-K = 1  # ばね定数の基準値
-k = K / (d ** 2) * (np.ones((N, N)) - np.diag(np.ones(N)))
-
-# 初期描画
-for e in edge:
-    lines.append(w.create_line(node[e[0]][0], node[e[0]][1],
-                               node[e[1]][0], node[e[1]][1], fill='Black', tags='edge'))
-
-for i in range(N):
-    circles.append(
-        w.create_oval(node[i][0] - r, node[i][1] - r, node[i][0] + r, node[i][1] + r, fill="White", tags='node'))
-    texts.append(w.create_text(node[i][0], node[i][1], text=str(i), fill='Black', tags='node'))
-
-# sympy用の変数と方程式
-sp.var('kij lij xi xj yi yj')
-sE = 1 / 2 * kij * ((xi - xj) ** 2 + (yi - yj) ** 2 + lij ** 2 - 2 * lij * ((xi - xj) ** 2 + (yi - yj) ** 2) ** (1 / 2))
-sEx, sEy = [sp.diff(sE, z) for z in [xi, yi]]
-sExx, sExy = [sp.diff(sEx, z) for z in [xi, yi]]
-sEyy = sp.diff(sEy, yi)
-fEx, fEy, fExx, fExy, fEyy = [sp.lambdify((kij, lij, xi, xj, yi, yj), sp.simplify(s)) for s in
-                              [sEx, sEy, sExx, sExy, sEyy]]
-
+differential()
 
 # 移動
-
 def move_node(event):
     if val.get() == 0:
         x = event.x
@@ -98,13 +118,13 @@ def move_node(event):
 
 def update_node(x, y, nodeID):
     # circle,text,lineの更新(描画の更新)
-    w.coords(circles[nodeID], x - r, y - r, x + r, y + r)
-    w.coords(texts[nodeID], x, y)
+    window.coords(shapes['circles'][nodeID], x - radius, y - radius, x + radius, y + radius)
+    window.coords(shapes['texts'][nodeID], x, y)
     for i in range(eN):
         if edge[i][0] == nodeID:
-            w.coords(lines[i], x, y, node[edge[i][1]][0], node[edge[i][1]][1])
+            window.coords(shapes['lines'][i], x, y, node[edge[i][1]][0], node[edge[i][1]][1])
         if edge[i][1] == nodeID:
-            w.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], x, y)
+            window.coords(shapes['lines'][i], node[edge[i][0]][0], node[edge[i][0]][1], x, y)
 
 
 def click_edge(event):
@@ -152,13 +172,14 @@ def move_back(event):
         # nodeの更新
         for i in range(N):
             node[i] = [nall[i][0] + x - x0_, nall[i][1] + y - y0_]
+            update_node(node[i][0], node[i][1],i)   #edgeの更新回数的にはupdate_nodeを使うのは非効率ではある
 
-        # circle,text,lineの更新(描画の更新)
-        for i in range(eN):
-            w.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], node[edge[i][1]][0], node[edge[i][1]][1])
-        for i in range(N):
-            w.coords(circles[i], node[i][0] - r, node[i][1] - r, node[i][0] + r, node[i][1] + r)
-            w.coords(texts[i], node[i][0], node[i][1])
+        # # circle,text,lineの更新(描画の更新)
+        # for i in range(eN):
+        #     window.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], node[edge[i][1]][0], node[edge[i][1]][1])
+        # for i in range(N):
+        #     window.coords(circles[i], node[i][0] - radius, node[i][1] - radius, node[i][0] + radius, node[i][1] + radius)
+        #     window.coords(texts[i], node[i][0], node[i][1])
 
 
 def fix_node(event):
@@ -175,44 +196,43 @@ def fix_node(event):
 
         fix[nodeID] = 1 - fix[nodeID]
         if fix[nodeID] == 1:
-            w.itemconfigure(circles[nodeID], fill='Yellow')
+            window.itemconfigure(figures['circles'][nodeID], fill='Yellow')
         else:
-            w.itemconfigure(circles[nodeID], fill='White')
+            window.itemconfigure(figures['circles'][nodeID], fill='White')
 
 
 def move_graph():
     # バインディング
-    w.tag_bind('node', '<Button1-Motion>', move_node)
-    w.tag_bind('edge', '<1>', click_edge)
-    w.tag_bind('edge', '<Button1-Motion>', move_edge)
-    w.tag_bind('back', '<1>', click_back)
-    w.tag_bind('back', '<Button1-Motion>', move_back)
-    w.tag_bind('node', '<3>', fix_node)
+    window.tag_bind('node', '<Button1-Motion>', move_node)
+    window.tag_bind('edge', '<1>', click_edge)
+    window.tag_bind('edge', '<Button1-Motion>', move_edge)
+    window.tag_bind('back', '<1>', click_back)
+    window.tag_bind('back', '<Button1-Motion>', move_back)
+    window.tag_bind('node', '<2>', fix_node)     #mac => <2>, windows => <3>
 
 
 def anime_graph():
     # dmを求める
     global node
-    dm = np.zeros(N)  # delta-m
+    delta = np.zeros(N)  # delta-m
     Ex = np.zeros(N)  # Ex
     Ey = np.zeros(N)  # Ey
 
-    for m in range(N):
-        for i in range(N):
-            if m != i and fix[m] == 0:
-                Ex[m] += fEx(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                Ey[m] += fEy(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+    for m,i in product(range(N), range(N)):
+        if m != i and fix[m] == 0:
+            Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+            Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
 
-    dm = (Ex ** 2 + Ey ** 2) ** (1 / 2)
+    delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
     # dmが最大となるmを求める
     for i in range(N):
-        if np.max(dm) == dm[i]:
+        if np.max(delta) == delta[i]:
             m = i
 
-    while np.max(dm) > ep and val.get() == 1:
+    while np.max(delta) > ep and val.get() == 1:
 
-        while dm[m] > ep and val.get() == 1:
+        while delta[m] > ep and val.get() == 1:
 
             # Ex,Ey,Exx,Exy,Eyyからdx,dyを求める
             Ex[m] = 0
@@ -223,11 +243,11 @@ def anime_graph():
 
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    Ex[m] += fEx(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Ey[m] += fEy(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Exx += fExx(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Exy += fExy(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Eyy += fEyy(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Exx += fExx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Exy += fExy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Eyy += fEyy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
 
             dx = (Ex[m] * Eyy - Ey[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dx
             dy = (Ey[m] * Exx - Ex[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dy
@@ -235,46 +255,43 @@ def anime_graph():
             # node,dmを更新
             node[m][0] += dx
             node[m][1] += dy
-            dm[m] = (Ex[m] ** 2 + Ey[m] ** 2) ** (1 / 2)
+            delta[m] = (Ex[m] ** 2 + Ey[m] ** 2) ** (1 / 2)
 
             # 描画の更新
             time.sleep(0.1)
-            w.coords(circles[m], node[m][0] - r, node[m][1] - r, node[m][0] + r, node[m][1] + r)
-            w.coords(texts[m], node[m][0], node[m][1])
-            for i in range(eN):
-                if edge[i][0] == m:
-                    w.coords(lines[i], node[m][0], node[m][1], node[edge[i][1]][0], node[edge[i][1]][1])
-                if edge[i][1] == m:
-                    w.coords(lines[i], node[edge[i][0]][0], node[edge[i][0]][1], node[m][0], node[m][1])
-            w.pack()
-            w.update()
+            update_node(node[m][0], node[m][1], m)
+            window.pack()
+            window.update()
 
         # dmを求める
-        dm = np.zeros(N)  # delta-m
+        delta = np.zeros(N)  # delta-m
         Ex = np.zeros(N)  # Ex
         Ey = np.zeros(N)  # Ey
 
         for m in range(N):
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    Ex[m] += fEx(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Ey[m] += fEy(k[m][i], l[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
 
-        dm = (Ex ** 2 + Ey ** 2) ** (1 / 2)
+        delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
         # dmが最大となるmを求める
         for i in range(N):
-            if np.max(dm) == dm[i]:
+            if np.max(delta) == delta[i]:
                 m = i
 
+def button_command():
+    global val
+    val = IntVar()
+    val.set(0)
+    move_graph()
 
-val = IntVar()
-val.set(0)
-move_graph()
+    r0 = Radiobutton(text='Drag / Stop', variable=val, value=0, command=move_graph)
+    r0.pack()
+    r1 = Radiobutton(text='Animation', variable=val, value=1, command=anime_graph)
+    r1.pack()
 
-r0 = Radiobutton(text='Drag / Stop', variable=val, value=0, command=move_graph)
-r0.pack()
-r1 = Radiobutton(text='Animation', variable=val, value=1, command=anime_graph)
-r1.pack()
+button_command()
 
 root.mainloop()
