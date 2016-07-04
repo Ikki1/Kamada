@@ -2,7 +2,7 @@ import numpy as np
 from tkinter import *
 import time
 import sympy as sp
-from itertools import product
+from itertools import product, chain
 
 
 
@@ -24,8 +24,7 @@ size = 300  # 画面のサイズ
 shapes = {
     'circles': [],
     'lines': [],
-    'texts': [],
-    'radius': 10
+    'texts': []
 }
 
 def initializeNode():
@@ -86,13 +85,21 @@ initializeDraw()
 
 def differential():
     # sympy用の変数と方程式
-    sp.var('kij lij xi xj yi yj')
-    sE = 1 / 2 * kij * ((xi - xj) ** 2 + (yi - yj) ** 2 + lij ** 2 - 2 * lij * ((xi - xj) ** 2 + (yi - yj) ** 2) ** (1 / 2))
-    sEx, sEy = [sp.diff(sE, z) for z in [xi, yi]]
-    sExx, sExy = [sp.diff(sEx, z) for z in [xi, yi]]
-    sEyy = sp.diff(sEy, yi)
-    global fEx, fEy, fExx, fExy, fEyy
-    fEx, fEy, fExx, fExy, fEyy = [sp.lambdify((kij, lij, xi, xj, yi, yj), sp.simplify(s)) for s in[sEx, sEy, sExx, sExy, sEyy]]
+    dim = 2
+    p0, p1 = ['', '']
+    for i in range(dim):
+        p0 = p0 + ' p0' + str(i)
+        p1 = p1 + ' p1' + str(i)
+    symbols = sp.var('kij lij' + p0 + p1)
+    lp0 = np.array(sp.var(p0))
+    lp1 = np.array(sp.var(p1))
+    norm = (np.sum((lp0 - lp1) ** 2)) ** (1 / 2)
+    E = 1 / 2 * kij * (norm - lij) ** 2
+    Eprime = [sp.diff(E, z) for z in list(lp0)]
+    Ehess = [[sp.diff(E, z0, z1) for z0 in list(lp0)] for z1 in list(lp0)]
+    global fEx,fEy, fExx, fExy, fEyx, fEyy
+    fEx, fEy = [sp.lambdify(symbols, sp.simplify(s)) for s in Eprime]
+    fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, sp.simplify(s)) for s in chain.from_iterable(Ehess)]
 
 differential()
 
@@ -196,9 +203,9 @@ def fix_node(event):
 
         fix[nodeID] = 1 - fix[nodeID]
         if fix[nodeID] == 1:
-            window.itemconfigure(figures['circles'][nodeID], fill='Yellow')
+            window.itemconfigure(shapes['circles'][nodeID], fill='Yellow')
         else:
-            window.itemconfigure(figures['circles'][nodeID], fill='White')
+            window.itemconfigure(shapes['circles'][nodeID], fill='White')
 
 
 def move_graph():
@@ -220,8 +227,8 @@ def anime_graph():
 
     for m,i in product(range(N), range(N)):
         if m != i and fix[m] == 0:
-            Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-            Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+            Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+            Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
 
     delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
@@ -243,11 +250,11 @@ def anime_graph():
 
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Exx += fExx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Exy += fExy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Eyy += fEyy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+                    Exx += fExx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+                    Exy += fExy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+                    Eyy += fEyy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
 
             dx = (Ex[m] * Eyy - Ey[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dx
             dy = (Ey[m] * Exx - Ex[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dy
@@ -271,8 +278,8 @@ def anime_graph():
         for m in range(N):
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
-                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[i][0], node[m][1], node[i][1])
+                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
 
         delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
