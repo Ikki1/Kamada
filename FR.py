@@ -4,13 +4,17 @@ import time
 import sympy as sp
 from itertools import product, chain
 
-fullsize = 500  # 余白込みの画面のサイズ
+fullsize = 600  # 余白込みの画面のサイズ
 size = 300  # 画面のサイズ
+
+ep = 0.01
 
 #初期情報
 edge = np.genfromtxt('edges-3.csv', delimiter=",").astype(np.int64)  # 辺の情報
 N = np.max(edge).astype(np.int64) + 1  # 頂点の個数
 eN = len(edge)  # 辺の本数
+
+fix = np.zeros(N)
 
 shapes = {
     'circles': [],
@@ -20,6 +24,9 @@ shapes = {
 
 def initializeNode():
     global node_pos, node_disp
+    #論文の手法
+    #node_pos = np.random.rand(N, 2) * fullsize
+    #今回用いた手法
     thetas = np.linspace(0, 2 * np.pi, N, endpoint=False)
     node_pos = (fullsize + size * np.c_[np.cos(thetas), np.sin(thetas)]) * 0.5
     node_disp =np.zeros((N, 2))
@@ -29,11 +36,12 @@ initializeNode()
 def springConstant():
     global k
     constant = 1  #定数の基準値
-    k = constant * (size **2 / N)**(1/2)
+    k = constant * (size ** 2 / N)**(1/2)
 
 springConstant()
 
 def func_attractive(dist):
+    length = 100
     return dist ** 2 / k
 
 def func_repulsive(dist):
@@ -148,23 +156,23 @@ def move_back(event):
         #     window.coords(texts[i], node_pos[i][0], node_pos[i][1])
 
 
-# def fix_node(event):
-#     if val.get() == 0:
-#         thisID = event.widget.find_withtag(CURRENT)[0]
-#
-#         # circleをクリックしていた場合
-#         if (thisID - eN) % 2 == 0:
-#             nodeID = int((thisID - eN - 2) / 2)
-#
-#         # textをクリックしていた場合
-#         else:
-#             nodeID = int((thisID - eN - 3) / 2)
-#
-#         fix[nodeID] = 1 - fix[nodeID]
-#         if fix[nodeID] == 1:
-#             window.itemconfigure(shapes['circles'][nodeID], fill='Yellow')
-#         else:
-#             window.itemconfigure(shapes['circles'][nodeID], fill='White')
+def fix_node(event):
+    if val.get() == 0:
+        thisID = event.widget.find_withtag(CURRENT)[0]
+
+        # circleをクリックしていた場合
+        if (thisID - eN) % 2 == 0:
+            nodeID = int((thisID - eN - 2) / 2)
+
+        # textをクリックしていた場合
+        else:
+            nodeID = int((thisID - eN - 3) / 2)
+
+        fix[nodeID] = 1 - fix[nodeID]
+        if fix[nodeID] == 1:
+            window.itemconfigure(shapes['circles'][nodeID], fill='Yellow')
+        else:
+            window.itemconfigure(shapes['circles'][nodeID], fill='White')
 
 
 def move_graph():
@@ -174,7 +182,7 @@ def move_graph():
     window.tag_bind('edge', '<Button1-Motion>', move_edge)
     window.tag_bind('back', '<1>', click_back)
     window.tag_bind('back', '<Button1-Motion>', move_back)
-    # window.tag_bind('node', '<2>', fix_node)     #mac => <2>, windows => <3>
+    window.tag_bind('node', '<2>', fix_node)     #mac => <2>, windows => <3>
 
 
 def distance(i, j):
@@ -183,8 +191,17 @@ def distance(i, j):
 def delta(i, j):
     return node_pos[i] - node_pos[j]
 
+
+
 def anime_graph():
-    while True:
+    tempature = 1
+    #temp = 10
+    active = True
+    count = 0
+    memo1 = np.ones((N, 2))
+    memo2 = np.zeros((N, 2))
+
+    while val.get() == 1:
         node_disp = np.zeros((N, 2))
 
         for i, j in product(range(N), range(N)):
@@ -192,21 +209,43 @@ def anime_graph():
                 node_disp[i] += delta(i, j) / distance(i, j) * func_repulsive(distance(i, j))
 
         for e in edge:
-            node_disp[e[0]] += delta(e[1], e[0]) / distance(e[1], e[0]) * func_attractive(distance(e[1], e[0]))
-            node_disp[e[1]] += delta(e[0], e[1]) / distance(e[0], e[1]) * func_attractive(distance(e[0], e[1]))
+            attract = delta(e[0], e[1]) / distance(e[0], e[1]) * func_attractive(distance(e[0], e[1]))
+            node_disp[e[0]] -= attract
+            node_disp[e[1]] += attract
 
         time.sleep(0.01)
 
         for i in range(N):
-            node_pos[i] += node_disp[i]/np.linalg.norm(node_disp[i])
-            node_pos[i][0] = min(fullsize, max(0, node_pos[i][0]))
-            node_pos[i][1] = min(fullsize, max(0, node_pos[i][1]))
+            if fix[i] == 0:
+                #論文の手法
+                #node_pos[i] += node_disp[i] / np.linalg.norm(node_disp[i]) * min(temp ** 2, np.linalg.norm(node_disp[i]))
+                #今回用いた手法
+                node_pos[i] += node_disp[i] / np.linalg.norm(node_disp[i]) * tempature
+                node_pos[i][0] = min(fullsize, max(0, node_pos[i][0]))
+                node_pos[i][1] = min(fullsize, max(0, node_pos[i][1]))
+            if count % 2 ==0 and active:
+                memo2[i] = [node_pos[i][0],node_pos[i][1]]
 
             # 描画の更新
             update_node(node_pos[i][0], node_pos[i][1], i)
 
         window.pack()
         window.update()
+
+        if active and count % 2 == 0 and count > 500:
+            if sum(sum(abs(memo1 - memo2))) < ep:
+                print("nonactive")
+                active = False
+            else:
+                memo1 = []
+                memo1 += [[n[0], n[1]] for n in memo2]
+
+        if active == False:
+            tempature = max(tempature - 0.05, 0)
+
+        # temp = max(temp - 0.1, 0)
+
+        count += 1
 
 def button_command():
     global val
