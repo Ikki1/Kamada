@@ -10,6 +10,8 @@ from itertools import product, chain
 #kk法の定数・変数
 ep = 10 ** (-2)
 
+dim = 2
+
 #初期情報
 edge = np.genfromtxt('edges-4.csv', delimiter=",").astype(np.int64)  # 辺の情報
 N = np.max(edge).astype(np.int64) + 1  # 頂点の個数
@@ -85,21 +87,33 @@ initializeDraw()
 
 def differential():
     # sympy用の変数と方程式
+    # dim = 2
+    # p0, p1 = ['', '']
+    # for i in range(dim):
+    #     p0 = p0 + ' p0' + str(i)
+    #     p1 = p1 + ' p1' + str(i)
+    # symbols = sp.var('kij lij' + p0 + p1)
+    # lp0 = np.array(sp.var(p0))
+    # lp1 = np.array(sp.var(p1))
+    # norm = (np.sum((lp0 - lp1) ** 2)) ** (1 / 2)
+    # E = 1 / 2 * kij * (norm - lij) ** 2
+    # Eprime = [sp.diff(E, z) for z in list(lp0)]
+    # Ehess = [[sp.diff(E, z0, z1) for z0 in list(lp0)] for z1 in list(lp0)]
+    # global fEx,fEy, fExx, fExy, fEyx, fEyy
+    # fEx, fEy = [sp.lambdify(symbols, sp.simplify(s)) for s in Eprime]
+    # fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, sp.simplify(s)) for s in chain.from_iterable(Ehess)]
     dim = 2
-    p0, p1 = ['', '']
-    for i in range(dim):
-        p0 = p0 + ' p0' + str(i)
-        p1 = p1 + ' p1' + str(i)
-    symbols = sp.var('kij lij' + p0 + p1)
-    lp0 = np.array(sp.var(p0))
-    lp1 = np.array(sp.var(p1))
-    norm = (np.sum((lp0 - lp1) ** 2)) ** (1 / 2)
-    E = 1 / 2 * kij * (norm - lij) ** 2
-    Eprime = [sp.diff(E, z) for z in list(lp0)]
-    Ehess = [[sp.diff(E, z0, z1) for z0 in list(lp0)] for z1 in list(lp0)]
-    global fEx,fEy, fExx, fExy, fEyx, fEyy
-    fEx, fEy = [sp.lambdify(symbols, sp.simplify(s)) for s in Eprime]
-    fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, sp.simplify(s)) for s in chain.from_iterable(Ehess)]
+    sp.var('kij lij')
+    p1 = sp.MatrixSymbol('p1', 1, dim)
+    p2 = sp.MatrixSymbol('p2', 1, dim)
+    symbols = (kij, lij, p1, p2)
+    norm = (sp.Matrix(p1 - p2).dot(sp.Matrix(p1 - p2))) ** (1 / 2)
+    sE = 1 / 2 * kij * (norm - lij) ** 2
+    Eprime = [sp.diff(sE, z) for z in p1]
+    Ehess = [[sp.diff(sE, z0, z1) for z0 in p1] for z1 in p1]
+    global fEx, fEy, fExx, fExy, fEyx, fEyy
+    fEx, fEy = [sp.lambdify(symbols, s ) for s in Eprime]
+    fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, s ) for s in chain.from_iterable(Ehess)]
 
 differential()
 
@@ -227,8 +241,9 @@ def anime_graph():
 
     for m,i in product(range(N), range(N)):
         if m != i and fix[m] == 0:
-            Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
-            Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+            node_m, node_i = node[m].reshape(1, 2), node[i].reshape(1, 2)
+            Ex[m] += fEx(k[m][i], length[m][i], node_m, node_i)
+            Ey[m] += fEy(k[m][i], length[m][i], node_m, node_i)
 
     delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
@@ -250,11 +265,12 @@ def anime_graph():
 
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
-                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
-                    Exx += fExx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
-                    Exy += fExy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
-                    Eyy += fEyy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+                    node_m, node_i = node[m].reshape(1, 2), node[i].reshape(1, 2)
+                    Ex[m] += fEx(k[m][i], length[m][i], node_m, node_i)
+                    Ey[m] += fEy(k[m][i], length[m][i], node_m, node_i)
+                    Exx += fExx(k[m][i], length[m][i], node_m, node_i)
+                    Exy += fExy(k[m][i], length[m][i], node_m, node_i)
+                    Eyy += fEyy(k[m][i], length[m][i], node_m, node_i)
 
             dx = (Ex[m] * Eyy - Ey[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dx
             dy = (Ey[m] * Exx - Ex[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dy
@@ -278,8 +294,9 @@ def anime_graph():
         for m in range(N):
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    Ex[m] += fEx(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
-                    Ey[m] += fEy(k[m][i], length[m][i], node[m][0], node[m][1], node[i][0], node[i][1])
+                    node_m, node_i = node[m].reshape(1, 2), node[i].reshape(1, 2)
+                    Ex[m] += fEx(k[m][i], length[m][i], node_m, node_i)
+                    Ey[m] += fEy(k[m][i], length[m][i], node_m, node_i)
 
         delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
