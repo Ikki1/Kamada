@@ -4,8 +4,9 @@ import time
 import sympy as sp
 from itertools import product, chain
 
-
-
+from kk_func import f_potentials
+fEx, fEy = f_potentials[1]
+fExx, fExy, fEyx, fEyy = f_potentials[2]
 
 #kk法の定数・変数
 ep = 10 ** (-2)
@@ -85,37 +86,40 @@ def initializeDraw():
 
 initializeDraw()
 
-def differential():
-    # sympy用の変数と方程式
-    # dim = 2
-    # p0, p1 = ['', '']
-    # for i in range(dim):
-    #     p0 = p0 + ' p0' + str(i)
-    #     p1 = p1 + ' p1' + str(i)
-    # symbols = sp.var('kij lij' + p0 + p1)
-    # lp0 = np.array(sp.var(p0))
-    # lp1 = np.array(sp.var(p1))
-    # norm = (np.sum((lp0 - lp1) ** 2)) ** (1 / 2)
-    # E = 1 / 2 * kij * (norm - lij) ** 2
-    # Eprime = [sp.diff(E, z) for z in list(lp0)]
-    # Ehess = [[sp.diff(E, z0, z1) for z0 in list(lp0)] for z1 in list(lp0)]
-    # global fEx,fEy, fExx, fExy, fEyx, fEyy
-    # fEx, fEy = [sp.lambdify(symbols, sp.simplify(s)) for s in Eprime]
-    # fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, sp.simplify(s)) for s in chain.from_iterable(Ehess)]
-    dim = 2
-    sp.var('kij lij')
-    p1 = sp.MatrixSymbol('p1', 1, dim)
-    p2 = sp.MatrixSymbol('p2', 1, dim)
-    symbols = (kij, lij, p1, p2)
-    norm = (sp.Matrix(p1 - p2).dot(sp.Matrix(p1 - p2))) ** (1 / 2)
-    sE = 1 / 2 * kij * (norm - lij) ** 2
-    Eprime = [sp.diff(sE, z) for z in p1]
-    Ehess = [[sp.diff(sE, z0, z1) for z0 in p1] for z1 in p1]
-    global fEx, fEy, fExx, fExy, fEyx, fEyy
-    fEx, fEy = [sp.lambdify(symbols, s ) for s in Eprime]
-    fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, s ) for s in chain.from_iterable(Ehess)]
-
-differential()
+# def differential():
+#     #numpy.array[sympy.Symbol]を用いた場合
+#     dim = 2
+#     p0, p1 = ['', '']
+#     for i in range(dim):
+#         p0 = p0 + ' p0' + str(i)
+#         p1 = p1 + ' p1' + str(i)
+#     symbols = sp.var('kij lij' + p0 + p1)
+#     lp0 = np.array(sp.var(p0))
+#     lp1 = np.array(sp.var(p1))
+#     norm = (np.sum((lp0 - lp1) ** 2)) ** (1 / 2)
+#     E = 1 / 2 * kij * (norm - lij) ** 2
+#     Eprime = [sp.diff(E, z) for z in list(lp0)]
+#     Ehess = [[sp.diff(E, z0, z1) for z0 in list(lp0)] for z1 in list(lp0)]
+#     global fEx,fEy, fExx, fExy, fEyx, fEyy
+#     fEx, fEy = [sp.lambdify(symbols, sp.simplify(s)) for s in Eprime]
+#     fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, sp.simplify(s)) for s in chain.from_iterable(Ehess)]
+#
+#     #sympy.MatrixSymbolを用いた場合（失敗）
+#     dim = 2
+#     sp.var('kij lij')
+#     p1 = sp.MatrixSymbol('p1', 1, dim)
+#     p2 = sp.MatrixSymbol('p2', 1, dim)
+#     symbols = (kij, lij, p1, p2)
+#     norm = (sp.Matrix(p1 - p2).dot(sp.Matrix(p1 - p2))) ** (1 / 2)
+#     norm = sp.sqrt(sp.Matrix(p1 - p2).dot(sp.Matrix(p1 - p2)))
+#     sE = 1 / 2 * kij * (norm - lij) ** 2
+#     Eprime = [sp.diff(sE, z) for z in p1]
+#     Ehess = [[sp.diff(sE, z0, z1) for z0 in p1] for z1 in p1]
+#     global fEx, fEy, fExx, fExy, fEyx, fEyy
+#     fEx, fEy = [sp.lambdify(symbols, s ) for s in Eprime]
+#     fExx, fExy, fEyx, fEyy = [sp.lambdify(symbols, s ) for s in chain.from_iterable(Ehess)]
+#
+# differential()
 
 # 移動
 def move_node(event):
@@ -234,16 +238,17 @@ def move_graph():
 
 def anime_graph():
     # dmを求める
-    global node
+    global k, length, node
     delta = np.zeros(N)  # delta-m
     Ex = np.zeros(N)  # Ex
     Ey = np.zeros(N)  # Ey
 
+    np.seterr(all='raise')
+
     for m,i in product(range(N), range(N)):
         if m != i and fix[m] == 0:
-            node_m, node_i = node[m].reshape(1, 2), node[i].reshape(1, 2)
-            Ex[m] += fEx(k[m][i], length[m][i], node_m, node_i)
-            Ey[m] += fEy(k[m][i], length[m][i], node_m, node_i)
+            Ex[m] += fEx(k[m][i], length[m][i], node[m], node[i])
+            Ey[m] += fEy(k[m][i], length[m][i], node[m], node[i])
 
     delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
@@ -265,12 +270,11 @@ def anime_graph():
 
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    node_m, node_i = node[m].reshape(1, 2), node[i].reshape(1, 2)
-                    Ex[m] += fEx(k[m][i], length[m][i], node_m, node_i)
-                    Ey[m] += fEy(k[m][i], length[m][i], node_m, node_i)
-                    Exx += fExx(k[m][i], length[m][i], node_m, node_i)
-                    Exy += fExy(k[m][i], length[m][i], node_m, node_i)
-                    Eyy += fEyy(k[m][i], length[m][i], node_m, node_i)
+                    Ex[m] += fEx(k[m][i], length[m][i], node[m], node[i])
+                    Ey[m] += fEy(k[m][i], length[m][i], node[m], node[i])
+                    Exx += fExx(k[m][i], length[m][i], node[m], node[i])
+                    Exy += fExy(k[m][i], length[m][i], node[m], node[i])
+                    Eyy += fEyy(k[m][i], length[m][i], node[m], node[i])
 
             dx = (Ex[m] * Eyy - Ey[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dx
             dy = (Ey[m] * Exx - Ex[m] * Exy) / (Exy ** 2 - Exx * Eyy)  # dy
@@ -294,9 +298,8 @@ def anime_graph():
         for m in range(N):
             for i in range(N):
                 if m != i and fix[m] == 0:
-                    node_m, node_i = node[m].reshape(1, 2), node[i].reshape(1, 2)
-                    Ex[m] += fEx(k[m][i], length[m][i], node_m, node_i)
-                    Ey[m] += fEy(k[m][i], length[m][i], node_m, node_i)
+                    Ex[m] += fEx(k[m][i], length[m][i], node[m], node[i])
+                    Ey[m] += fEy(k[m][i], length[m][i], node[m], node[i])
 
         delta = (Ex ** 2 + Ey ** 2) ** (1 / 2)
 
@@ -304,6 +307,7 @@ def anime_graph():
         for i in range(N):
             if np.max(delta) == delta[i]:
                 m = i
+
 
 def button_command():
     global val
